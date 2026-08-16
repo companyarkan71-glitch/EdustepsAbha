@@ -15,5 +15,5 @@ window.FIREBASE_CONFIG = {
   projectId: "eduplus-abha",
   storageBucket: "eduplus-abha.firebasestorage.app",
   messagingSenderId: "1042252819558",
-  appId "1:1042252819558:web:d743c955383f1f9d73d1a7"
+  appId: "1:1042252819558:web:d743c955383f1f9d73d1a7",
 };
