@@ -1433,25 +1433,25 @@
     if (!s) return;
     const g = AccStore.gradeById(s.class_id);
     printHTML(`
-      <div class="print-receipt exam-card">
+      <div class="print-receipt exam-card" dir="ltr">
         <div class="ec-head">
-          <img class="ec-logo" src="../img/logo.jpg" alt="${escapeHtml(SCHOOL_PRINT_NAME)}" />
+          <img class="ec-logo" src="../img/logo.jpg" alt="EduPlus - Abha" />
           <div class="ec-schoolname">
-            <b>${escapeHtml(SCHOOL_PRINT_NAME)}</b>
-            <span>بطاقة دخول الامتحان</span>
+            <b>EduPlus - Abha</b>
+            <span>Exam Entry Card</span>
           </div>
         </div>
         <div class="ec-body">
           <div class="ec-info">
-            <div class="pr-row"><span>اسم الطالب</span><b>${escapeHtml(s.name)}</b></div>
-            <div class="pr-row"><span>رقم القيد</span><b class="mono">${escapeHtml(s.reg_no)}</b></div>
-            <div class="pr-row"><span>الصف / المرحلة</span><b>${g ? escapeHtml(g.name) : '—'}</b></div>
+            <div class="pr-row"><span>Student Name</span><b>${escapeHtml(s.name)}</b></div>
+            <div class="pr-row"><span>Seat No.</span><b class="mono">${escapeHtml(s.reg_no)}</b></div>
+            <div class="pr-row"><span>Class / Grade</span><b>${g ? escapeHtml(g.name) : '—'}</b></div>
           </div>
-          <div class="ec-photo">${s.photo ? `<img src="${s.photo}" alt="" />` : 'صورة الطالب'}</div>
+          <div class="ec-photo">${s.photo ? `<img src="${s.photo}" alt="" />` : 'Student Photo'}</div>
         </div>
         <div class="ec-footer">
-          <div class="ec-sign"><span>توقيع المدير</span><b>ــــــــــــــــــ</b></div>
-          <div class="ec-sealbox"><span>ختم المدرسة</span><div class="ec-seal">ختم</div></div>
+          <div class="ec-sign"><span>Manager's Signature</span><b>ــــــــــــــــــ</b></div>
+          <div class="ec-sealbox"><span>School Seal</span><div class="ec-seal">Seal</div></div>
         </div>
       </div>
     `);
