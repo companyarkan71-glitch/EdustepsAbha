@@ -36,11 +36,10 @@ import {
   // نستخدم experimentalAutoDetectLongPolling بدل getFirestore الافتراضية: بعض الشبكات
   // (برامج حماية، بروكسي شركات) تحجب اتصال Firestore الفوري (WebChannel)، وهذا الخيار يجعل Firestore
   // يكتشف تلقائيًا ويستخدم طريقة اتصال بديلة (long-polling) تعمل عبر أي شبكة تقريبًا.
-  // ملاحظة مهمّة: قاعدة بيانات Firestore الفعلية لمشروع هذه المدرسة (eduplus-abha) أُنشئت في وقتها
-  // باسم مخصّص "default" (بدون قوسين) بدل الاسم الافتراضي المحجوز "(default)" — لذلك يجب تمرير
-  // معرّف قاعدة البيانات صراحةً هنا كـ "default"، وإلا يحاول SDK الاتصال بقاعدة "(default)" غير
-  // الموجودة أصلًا، فيظهر فشل اتصال دائم بمظهر "client is offline" مضلِّل مهما كانت الشبكة.
-  const db = initializeFirestore(fbApp, { experimentalAutoDetectLongPolling: true, useFetchStreams: false }, 'default');
+  // ملاحظة: لا يُمرَّر معرّف قاعدة بيانات صريح هنا — قاعدة البيانات الافتراضية الحقيقية اسمها الداخلي
+  // "(default)"، وتمرير أي نص آخر (مثل "default" بدون قوسين) يوجّه التطبيق لقاعدة بيانات غير موجودة
+  // فعليًا، مما يسبب فشل الاتصال الدائم بمظهر "client is offline" مضلِّل مهما كانت الشبكة.
+  const db = initializeFirestore(fbApp, { experimentalAutoDetectLongPolling: true, useFetchStreams: false });
   setPersistence(auth, browserSessionPersistence).catch(() => {});
 
   // ---------- دليل الحسابات المدرسي (ثابت) ----------
@@ -659,7 +658,7 @@ import {
       if (!password || password.length < 8) return { ok: false, error: 'كلمة المرور يجب ألا تقل عن 8 أحرف' };
       const existingMap = await getDoc(doc(db, 'usernames', uname));
       if (existingMap.exists()) return { ok: false, error: 'اسم المستخدم موجود مسبقًا' };
-      const roleVal = role === 'admin' ? 'admin' : 'staff';
+      const roleVal = role === 'admin' ? 'admin' : (role === 'viewer' ? 'viewer' : 'staff');
 
       const secondaryApp = initializeApp(global.FIREBASE_CONFIG, 'SecondaryUserCreation-' + Date.now());
       const secondaryAuth = getAuth(secondaryApp);
@@ -687,7 +686,7 @@ import {
       const user = cache.users.find((u) => u.uid === id);
       if (!user) return { ok: false, error: 'المستخدم غير موجود' };
       const session = this.getSession();
-      const roleVal = role === 'admin' ? 'admin' : 'staff';
+      const roleVal = role === 'admin' ? 'admin' : (role === 'viewer' ? 'viewer' : 'staff');
       const activeVal = active !== false;
       if (session && session.userId === id && activeVal === false) {
         return { ok: false, error: 'لا يمكنك تعطيل حسابك الحالي أثناء تسجيل الدخول به' };

@@ -43,10 +43,47 @@
   function showLogin() { $('#loginScreen').classList.remove('hidden'); $('#appShell').classList.add('hidden'); }
   function showApp() { $('#loginScreen').classList.add('hidden'); $('#appShell').classList.remove('hidden'); }
 
-  const ROLE_LABEL = { admin: 'مسؤول', staff: 'محاسب' };
+  const ROLE_LABEL = { admin: 'مسؤول', staff: 'محاسب', viewer: 'مُشاهد (عرض فقط)' };
   // ---------- الصلاحيات: الحسابات غير الإدارية (محاسب) لا ترى إلا هذه الأقسام الثلاثة ----------
   const STAFF_ALLOWED_TABS = ['students', 'receipts', 'payments'];
   let currentRole = null;
+
+  // ---------- حساب "مُشاهد" (عرض فقط): يرى كل الأقسام والبيانات كالمسؤول تمامًا،
+  // لكنه لا يملك صلاحية الإضافة أو التعديل أو الحذف أو الطباعة أو إرسال واتساب ----------
+  function canModify() { return currentRole !== 'viewer'; }
+  function blockIfViewer() {
+    if (currentRole === 'viewer') {
+      toast('هذا الحساب للعرض فقط — لا يمكنه الإضافة أو التعديل أو الحذف أو الطباعة', 'error');
+      return true;
+    }
+    return false;
+  }
+  // كل عناصر الإضافة/التعديل/الحذف/الطباعة/واتساب التي تُخفى تلقائيًا عن حساب "مُشاهد"
+  const VIEWER_HIDE_SELECTORS = [
+    '#addStudentBtn', '#addUserBtn', '#viewAddPaymentBtn',
+    '#printStudentCardBtn', '#printExamCardBtn', '#printFullStatementBtn',
+    '[data-edit]', '[data-edit-user]', '[data-print]', '[data-whatsapp]',
+    '[data-reset-pwd]', '[data-toggle-active]', '[data-delete]', '[data-delete-user]', '[data-pay]',
+  ];
+  function applyViewerLock() {
+    if (currentRole !== 'viewer') return;
+    VIEWER_HIDE_SELECTORS.forEach((sel) => { $all(sel).forEach((el) => { el.style.display = 'none'; }); });
+    // إخفاء نموذجي "سند قبض جديد" و"سند صرف جديد" كاملين (العرض فقط لا يضيف سندات)
+    ['#receiptForm', '#paymentForm'].forEach((sel) => {
+      const form = document.querySelector(sel);
+      const panel = form && form.closest('.panel');
+      if (panel) panel.style.display = 'none';
+    });
+  }
+  let viewerLockObserverStarted = false;
+  function startViewerLockObserver() {
+    if (currentRole !== 'viewer' || viewerLockObserverStarted) return;
+    viewerLockObserverStarted = true;
+    applyViewerLock();
+    // الواجهة تُعاد بناؤها بالكامل عند كل تنقل بين التبويبات (innerHTML)، فنراقب التغييرات
+    // لإخفاء أزرار الإضافة/التعديل/الحذف/الطباعة تلقائيًا من جديد كل مرة
+    new MutationObserver(() => applyViewerLock()).observe(document.body, { childList: true, subtree: true });
+  }
 
   function applySessionUI(session) {
     currentRole = session.role;
@@ -56,13 +93,15 @@
     const roleBadge = $('#userRoleBadge');
     if (roleBadge) roleBadge.textContent = ROLE_LABEL[session.role] || '';
     const isAdmin = session.role === 'admin';
+    const isViewer = session.role === 'viewer';
     $all('.tab-btn').forEach((btn) => {
       if (STAFF_ALLOWED_TABS.includes(btn.dataset.tab)) return; // ظاهر دائمًا لكل الحسابات
-      btn.classList.toggle('hidden', !isAdmin);
+      btn.classList.toggle('hidden', !isAdmin && !isViewer); // المُشاهد يرى كل الأقسام كالمسؤول، بدون أي صلاحية تعديل
     });
-    // إخفاء إجمالي ما تم تحصيله من الطلاب عن الحسابات غير الإدارية
+    // إخفاء إجمالي ما تم تحصيله من الطلاب عن الحسابات غير الإدارية (المُشاهد يراه لأنه "يرى كل شيء")
     const revenueKpi = $('#studentsRevenueKpiBox');
-    if (revenueKpi) revenueKpi.classList.toggle('hidden', !isAdmin);
+    if (revenueKpi) revenueKpi.classList.toggle('hidden', !isAdmin && !isViewer);
+    startViewerLockObserver();
   }
 
   async function checkSession() {
@@ -127,7 +166,7 @@
   };
 
   function switchTab(tab) {
-    if (currentRole !== 'admin' && !STAFF_ALLOWED_TABS.includes(tab)) tab = 'students';
+    if (currentRole !== 'admin' && currentRole !== 'viewer' && !STAFF_ALLOWED_TABS.includes(tab)) tab = 'students';
     state.currentTab = tab;
     $all('.tab-btn').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
     $all('.tab-panel').forEach((p) => p.classList.add('hidden'));
@@ -307,8 +346,8 @@
         cv.addEventListener('click', () => openViewStudent(cv.dataset.student));
       });
       tbody.querySelectorAll('[data-view]').forEach((b) => b.addEventListener('click', () => openViewStudent(b.dataset.view)));
-      tbody.querySelectorAll('[data-edit]').forEach((b) => b.addEventListener('click', () => openStudentForm(b.dataset.edit)));
-      tbody.querySelectorAll('[data-pay]').forEach((b) => b.addEventListener('click', () => openPaymentModal(b.dataset.pay)));
+      tbody.querySelectorAll('[data-edit]').forEach((b) => b.addEventListener('click', () => { if (blockIfViewer()) return; openStudentForm(b.dataset.edit); }));
+      tbody.querySelectorAll('[data-pay]').forEach((b) => b.addEventListener('click', () => { if (blockIfViewer()) return; openPaymentModal(b.dataset.pay); }));
       tbody.querySelectorAll('[data-delete]').forEach((b) => b.addEventListener('click', async () => {
         const st = AccStore.getStudent(b.dataset.delete);
         if (!confirm(`حذف الطالب «${st ? st.name : ''}»؟ لن يتم حذف السندات المالية المرتبطة به.`)) return;
@@ -468,11 +507,12 @@
     updateFeeBreakdownHint();
   }
 
-  // ---------- إظهار/إخفاء قسم الدفعة الأولى: إجباري عند إضافة طالب جديد فقط، لا يظهر عند التعديل ----------
-  function setFirstPaymentRequired(required) {
-    $('#firstPaymentSection').classList.toggle('hidden', !required);
+  // ---------- إظهار/إخفاء قسم الدفعة الأولى: يظهر عند إضافة طالب جديد فقط (اختياري)، لا يظهر عند التعديل ----------
+  function setFirstPaymentRequired(show) {
+    $('#firstPaymentSection').classList.toggle('hidden', !show);
+    // الدفعة الأولى أصبحت اختيارية: لا تُفرض خاصية required على حقولها حتى عند إضافة طالب جديد
     ['first_payment_account_id', 'first_payment_amount', 'first_payment_method'].forEach((n) => {
-      studentForm.elements[n].required = required;
+      studentForm.elements[n].required = false;
     });
   }
 
@@ -520,12 +560,13 @@
     openModal('studentModal');
   }
 
-  $('#addStudentBtn').addEventListener('click', () => openStudentForm(null));
+  $('#addStudentBtn').addEventListener('click', () => { if (blockIfViewer()) return; openStudentForm(null); });
   $('#studentModalClose').addEventListener('click', () => closeModal('studentModal'));
   $('#studentCancelBtn').addEventListener('click', () => closeModal('studentModal'));
 
   studentForm.addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (blockIfViewer()) return;
     const alertBox = $('#studentFormAlert');
     alertBox.className = 'form-alert';
     const fd = new FormData(studentForm);
@@ -542,25 +583,28 @@
       alertBox.textContent = 'يرجى إدخال تفصيل الرسوم (رسم واحد على الأقل بقيمة أكبر من صفر) — هذا الحقل إجباري';
       return;
     }
+    // الدفعة الأولى أصبحت اختيارية عند إضافة طالب جديد: نتحقق من صحتها فقط إذا أدخل المستخدم مبلغًا فعليًا
     let firstPaymentAmount = 0;
-    if (isNewStudent) {
-      firstPaymentAmount = Number(fd.get('first_payment_amount'));
-      if (!fd.get('first_payment_amount') || !firstPaymentAmount || firstPaymentAmount <= 0) {
+    if (isNewStudent && fd.get('first_payment_amount')) {
+      firstPaymentAmount = Number(fd.get('first_payment_amount')) || 0;
+      if (firstPaymentAmount < 0) {
         alertBox.className = 'form-alert show error';
-        alertBox.textContent = 'يرجى إدخال مبلغ الدفعة الأولى (قيمة أكبر من صفر) — هذا الحقل إجباري لأي نوع رسوم';
+        alertBox.textContent = 'مبلغ الدفعة الأولى لا يمكن أن يكون سالبًا';
         return;
       }
-      if (!fd.get('first_payment_account_id')) {
-        alertBox.className = 'form-alert show error';
-        alertBox.textContent = 'يرجى اختيار نوع الرسوم (حساب الإيراد) الخاص بالدفعة الأولى';
-        return;
-      }
-      const discount = Number(fd.get('discount_percent')) || 0;
-      const netFee = tuitionFee * (1 - discount / 100);
-      if (firstPaymentAmount > netFee + 0.01) {
-        alertBox.className = 'form-alert show error';
-        alertBox.textContent = `الدفعة الأولى (${fmtMoney(firstPaymentAmount)}) لا يمكن أن تتجاوز صافي الرسوم المستحقة (${fmtMoney(netFee)})`;
-        return;
+      if (firstPaymentAmount > 0) {
+        if (!fd.get('first_payment_account_id')) {
+          alertBox.className = 'form-alert show error';
+          alertBox.textContent = 'يرجى اختيار نوع الرسوم (حساب الإيراد) الخاص بالدفعة الأولى';
+          return;
+        }
+        const discount = Number(fd.get('discount_percent')) || 0;
+        const netFee = tuitionFee * (1 - discount / 100);
+        if (firstPaymentAmount > netFee + 0.01) {
+          alertBox.className = 'form-alert show error';
+          alertBox.textContent = `الدفعة الأولى (${fmtMoney(firstPaymentAmount)}) لا يمكن أن تتجاوز صافي الرسوم المستحقة (${fmtMoney(netFee)})`;
+          return;
+        }
       }
     }
     const payload = {
@@ -596,12 +640,17 @@
         toast('تم تحديث بيانات الطالب', 'success');
       } else {
         const created = await AccStore.createStudent(payload);
-        newReceipt = await AccStore.createReceipt({
-          date: payload.admission_date, amount: firstPaymentAmount, party_name: created.name, student_id: created.id,
-          method: fd.get('first_payment_method'), account_id: fd.get('first_payment_account_id'),
-          description: 'الدفعة الأولى عند القبول',
-        });
-        toast(`تمت إضافة الطالب (رقم القيد: ${created.reg_no}) وتسجيل الدفعة الأولى بمبلغ ${fmtMoney(firstPaymentAmount)}`, 'success');
+        if (firstPaymentAmount > 0) {
+          newReceipt = await AccStore.createReceipt({
+            date: payload.admission_date, amount: firstPaymentAmount, party_name: created.name, student_id: created.id,
+            method: fd.get('first_payment_method'), account_id: fd.get('first_payment_account_id'),
+            description: 'الدفعة الأولى عند القبول',
+          });
+          toast(`تمت إضافة الطالب (رقم القيد: ${created.reg_no}) وتسجيل الدفعة الأولى بمبلغ ${fmtMoney(firstPaymentAmount)}`, 'success');
+        } else {
+          toast(`تمت إضافة الطالب (رقم القيد: ${created.reg_no})`, 'success');
+        }
+        sendWhatsAppWelcome(created.name, payload.guardian_phone || payload.father_phone);
       }
       closeModal('studentModal');
       state.studentsPage = 1;
@@ -692,6 +741,7 @@
 
   $('#viewStudentClose').addEventListener('click', () => closeModal('viewStudentModal'));
   $('#viewAddPaymentBtn').addEventListener('click', () => {
+    if (blockIfViewer()) return;
     closeModal('viewStudentModal');
     openPaymentModal(currentViewStudentId);
   });
@@ -724,6 +774,7 @@
 
   studentPaymentForm.addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (blockIfViewer()) return;
     const alertBox = $('#studentPaymentAlert');
     alertBox.className = 'form-alert';
     const fd = new FormData(studentPaymentForm);
@@ -777,6 +828,7 @@
 
   receiptForm.addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (blockIfViewer()) return;
     const alertBox = $('#receiptAlert');
     alertBox.className = 'form-alert';
     const fd = new FormData(receiptForm);
@@ -827,10 +879,12 @@
           <td>${fmtMoney(v.amount)}</td>
           <td><div class="row-actions">
             <button class="icon-btn" data-print="${v.id}" title="طباعة / حفظ PDF"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></button>
+            <button class="icon-btn" data-whatsapp="${v.id}" title="إرسال الإيصال عبر واتساب"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
             ${currentRole === 'admin' ? `<button class="icon-btn danger" data-delete="${v.id}" title="حذف"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>` : ''}
           </div></td>
         </tr>`).join('');
       tbody.querySelectorAll('[data-print]').forEach((btn) => btn.addEventListener('click', () => printVoucher(btn.dataset.print)));
+      tbody.querySelectorAll('[data-whatsapp]').forEach((btn) => btn.addEventListener('click', () => sendReceiptWhatsApp(btn.dataset.whatsapp, btn)));
       tbody.querySelectorAll('[data-delete]').forEach((btn) => btn.addEventListener('click', async () => {
         if (!confirm('حذف سند القبض هذا؟ سيُحذف القيد المرتبط به أيضًا.')) return;
         btn.disabled = true;
@@ -851,6 +905,7 @@
 
   paymentForm.addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (blockIfViewer()) return;
     const alertBox = $('#paymentAlert');
     alertBox.className = 'form-alert';
     const fd = new FormData(paymentForm);
@@ -1043,7 +1098,7 @@
 
   // ---------- المستخدمون (متاح للمسؤول فقط) ----------
   function loadUsersTab() {
-    if (currentRole !== 'admin') return;
+    if (currentRole !== 'admin' && currentRole !== 'viewer') return;
     const session = AccAuth.getSession();
     const users = AccAuth.listUsers();
     const tbody = $('#usersTableBody');
@@ -1069,9 +1124,10 @@
         </td>
       </tr>`).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);">لا يوجد مستخدمون</td></tr>';
 
-    tbody.querySelectorAll('[data-edit-user]').forEach((b) => b.addEventListener('click', () => openEditUserModal(b.dataset.editUser)));
-    tbody.querySelectorAll('[data-reset-pwd]').forEach((b) => b.addEventListener('click', () => openResetPwdModal(b.dataset.resetPwd)));
+    tbody.querySelectorAll('[data-edit-user]').forEach((b) => b.addEventListener('click', () => { if (blockIfViewer()) return; openEditUserModal(b.dataset.editUser); }));
+    tbody.querySelectorAll('[data-reset-pwd]').forEach((b) => b.addEventListener('click', () => { if (blockIfViewer()) return; openResetPwdModal(b.dataset.resetPwd); }));
     tbody.querySelectorAll('[data-toggle-active]').forEach((b) => b.addEventListener('click', async () => {
+      if (blockIfViewer()) return;
       const u = users.find((x) => x.id === b.dataset.toggleActive);
       if (!u) return;
       b.disabled = true;
@@ -1082,6 +1138,7 @@
       loadUsersTab();
     }));
     tbody.querySelectorAll('[data-delete-user]').forEach((b) => b.addEventListener('click', async () => {
+      if (blockIfViewer()) return;
       const u = users.find((x) => x.id === b.dataset.deleteUser);
       if (!confirm(`حذف المستخدم «${u ? u.username : ''}»؟ لا يمكن التراجع عن هذا الإجراء.`)) return;
       b.disabled = true;
@@ -1094,6 +1151,7 @@
   }
 
   $('#addUserBtn').addEventListener('click', () => {
+    if (blockIfViewer()) return;
     $('#userForm').reset();
     $('#userFormAlert').className = 'form-alert';
     openModal('userModal');
@@ -1102,6 +1160,7 @@
   $('#userModalCancel').addEventListener('click', () => closeModal('userModal'));
   $('#userForm').addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (blockIfViewer()) return;
     const alertBox = $('#userFormAlert');
     alertBox.className = 'form-alert';
     const fd = new FormData(e.target);
@@ -1144,6 +1203,7 @@
   $('#editUserModalCancel').addEventListener('click', () => closeModal('editUserModal'));
   $('#editUserForm').addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (blockIfViewer()) return;
     const alertBox = $('#editUserFormAlert');
     alertBox.className = 'form-alert';
     const fd = new FormData(e.target);
@@ -1282,6 +1342,45 @@
     if (e.key === 'Escape') $all('.modal-overlay:not(.hidden)').forEach((o) => o.classList.add('hidden'));
   });
 
+  // ---------- رسالة ترحيب واتساب تلقائية لولي الأمر عند تسجيل طالب جديد ----------
+  // يُرسَل الطلب إلى دالة خادم (Netlify Function) وليس مباشرة إلى واجهة WhatsApp من المتصفح،
+  // حتى لا يظهر توكن الوصول السري في كود الموقع. الدالة نفسها تتجاهل الأخطاء بصمت (fire-and-forget)
+  // كي لا يتعطّل حفظ الطالب أبدًا بسبب مشكلة في واتساب.
+  const WHATSAPP_WELCOME_API_URL = 'https://eduplus-abha-welcome.netlify.app/api/whatsapp-welcome';
+
+  function normalizePhoneForWhatsApp(raw) {
+    let digits = String(raw || '').replace(/[^\d]/g, ''); // يزيل + والمسافات والشرطات، يُبقي الأرقام فقط
+    if (!digits) return '';
+    if (digits.startsWith('00')) digits = digits.slice(2); // 00966... -> 966...
+    if (digits.startsWith('966') && digits.charAt(3) === '0') {
+      // خطأ شائع: كتابة +966 ثم إبقاء الصفر المحلي (مثال: +9660501234567) — يجب حذف هذا الصفر
+      digits = '966' + digits.slice(4);
+    } else if (digits.startsWith('0')) {
+      digits = '966' + digits.slice(1); // افتراضي: رقم جوال سعودي محلي (يبدأ بصفر)
+    } else if (digits.length === 9 && !digits.startsWith('966')) {
+      digits = '966' + digits; // رقم بلا صفر ولا رمز دولة
+    }
+    return digits;
+  }
+
+  function sendWhatsAppWelcome(studentName, guardianPhone) {
+    const phone = normalizePhoneForWhatsApp(guardianPhone);
+    if (!phone) return;
+    try {
+      fetch(WHATSAPP_WELCOME_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentName, phone }),
+      })
+        .then((res) => res.json().catch(() => ({})).then((data) => {
+          // لا نزعج المستخدم بأي رسالة — فقط نسجّل النتيجة في console المتصفح لتسهيل تشخيص أي عطل لاحقًا
+          if (res.ok && data && data.ok) console.info('WHATSAPP_WELCOME_SENT', data);
+          else console.warn('WHATSAPP_WELCOME_FAILED', res.status, data);
+        }))
+        .catch((e) => console.warn('WHATSAPP_WELCOME_NETWORK_ERROR', e && e.message));
+    } catch (e) { /* تجاهل */ }
+  }
+
   // ---------- الطباعة (إيصال سند / بطاقة طالب) — عبر نافذة طباعة المتصفح، يمكن حفظها كـ PDF ----------
   const SCHOOL_PRINT_NAME = 'إيديوبلس - أبها';
   function printHTML(html) {
@@ -1299,6 +1398,7 @@
   }
 
   function printVoucher(voucherId) {
+    if (blockIfViewer()) return;
     const v = AccStore.getVoucher(voucherId);
     if (!v) return;
     const account = AccStore.accountLabel(v.account_id);
@@ -1326,6 +1426,122 @@
       `);
     }
     try { EduQR.renderToCanvas(document.getElementById(qrId), qrText, { size: 100, margin: 2 }); } catch (e) { /* تجاهل */ }
+  }
+
+  // ---------- إرسال إيصال الدفع كـ PDF عبر واتساب ----------
+  // يُبنى نفس الإيصال المستخدم في الطباعة، ثم يُحوَّل إلى PDF داخل المتصفح عبر html2pdf.js
+  // (محمَّلة من CDN في index.html)، ويُرسَل إلى دالة خادم (Netlify Function) ترفعه إلى واتساب
+  // وترسله ضمن قالب رسالة (payment_receipt) معتمد من ميتا يحتوي على مرفق مستند.
+  const WHATSAPP_RECEIPT_API_URL = 'https://eduplus-abha-welcome.netlify.app/api/whatsapp-receipt';
+
+  function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = String(reader.result || '');
+        const commaIndex = result.indexOf(',');
+        resolve(commaIndex >= 0 ? result.slice(commaIndex + 1) : result);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  // سندات قديمة أُنشئت قبل ربط السند بالطالب مباشرة لا تحمل student_id —
+  // نحاول هنا مطابقتها باسم الدافع (party_name) مع اسم الطالب لإيجادها تلقائيًا
+  function findStudentForVoucher(v) {
+    if (v.student_id) return AccStore.getStudent(v.student_id);
+    const name = String(v.party_name || '').trim();
+    if (!name) return null;
+    const candidates = AccStore.listStudents({ search: name, pageSize: 500 }).rows
+      .filter((s) => String(s.name || '').trim() === name);
+    if (candidates.length === 1) return candidates[0];
+    if (candidates.length === 0) return null;
+    // أكثر من طالب بنفس الاسم تمامًا: نطلب من المستخدم تحديد رقم القيد الصحيح
+    const list = candidates.map((s) => `${s.reg_no} — ${s.name}`).join('\n');
+    const regNo = window.prompt(`هناك أكثر من طالب بنفس الاسم "${name}". يرجى إدخال رقم القيد الصحيح:\n${list}`);
+    if (!regNo) return null;
+    return candidates.find((s) => s.reg_no === regNo.trim()) || null;
+  }
+
+  async function sendReceiptWhatsApp(voucherId, btn) {
+    if (blockIfViewer()) return;
+    const v = AccStore.getVoucher(voucherId);
+    if (!v || v.type !== 'receipt') return;
+    const student = findStudentForVoucher(v);
+    if (!student) { toast('تعذّر تحديد الطالب المرتبط بهذا السند — تأكد أن اسم الدافع المسجَّل في السند مطابق تمامًا لاسم الطالب', 'error'); return; }
+    const phone = normalizePhoneForWhatsApp(student.guardian_phone || student.father_phone);
+    if (!phone) { toast('لا يوجد رقم جوال لولي الأمر لإرسال الإيصال إليه', 'error'); return; }
+    if (typeof window.html2pdf !== 'function') {
+      toast('تعذّر تجهيز ملف PDF — تحقّق من اتصال الإنترنت وأعد المحاولة', 'error');
+      return;
+    }
+
+    if (btn) btn.disabled = true;
+    let container = null;
+    try {
+      const account = AccStore.accountLabel(v.account_id);
+      const qrId = 'waReceiptQr' + Date.now();
+      const qrText = `${AccStore.SCHOOL_CODE}|${v.serial}`;
+
+      // نبني نفس عنصر الإيصال المستخدم في الطباعة، كي يلتقطه html2pdf بنفس تنسيق الموقع
+      // (خطوط، ألوان، QR) دون التأثير على واجهة المستخدم الحالية.
+      // ملاحظة مهمّة (تم التحقق منها تجريبيًا على الموقع الفعلي): html2canvas يلتقط هذا
+      // العنصر كصفحة فارغة تمامًا إذا كان بوضع position: fixed أو position: absolute
+      // خارج الشاشة — في كلتا الحالتين، بغض النظر عن إعدادات scrollX/scrollY أو
+      // foreignObjectRendering. الحل الموثوق: إبقاء العنصر بوضعه الطبيعي (static) داخل
+      // تدفق المستند (هكذا يلتقطه html2canvas بمحتواه كاملاً)، وإخفاؤه عن المستخدم عبر
+      // وضعه داخل "غلاف" مثبّت بحجم صفر مع overflow: hidden بدلاً من تحريك العنصر نفسه.
+      container = document.createElement('div');
+      container.style.width = '760px';
+      container.style.background = '#fff';
+      container.innerHTML = buildFeeReceiptHTML(v, student, account, qrId, qrText);
+
+      const containerWrapper = document.createElement('div');
+      Object.assign(containerWrapper.style, {
+        position: 'fixed', top: '0', left: '0', width: '0', height: '0',
+        overflow: 'hidden', pointerEvents: 'none',
+      });
+      containerWrapper.appendChild(container);
+      document.body.appendChild(containerWrapper);
+
+      try { EduQR.renderToCanvas(container.querySelector('#' + qrId), qrText, { size: 130, margin: 2 }); } catch (e) { /* تجاهل */ }
+      await new Promise((resolve) => setTimeout(resolve, 80)); // إتاحة وقت لرسم رمز QR قبل الالتقاط
+
+      const pdfBlob = await window.html2pdf().from(container).set({
+        margin: 10,
+        image: { type: 'jpeg', quality: 0.95 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      }).outputPdf('blob');
+
+      const pdfBase64 = await blobToBase64(pdfBlob);
+
+      const res = await fetch(WHATSAPP_RECEIPT_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, studentName: student.name, amount: fmtMoney(v.amount), pdfBase64 }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data && data.success) {
+        toast('تم إرسال الإيصال عبر واتساب', 'success');
+      } else {
+        console.warn('WHATSAPP_RECEIPT_FAILED', res.status, data);
+        toast('تعذّر إرسال الإيصال عبر واتساب', 'error');
+      }
+    } catch (e) {
+      console.warn('WHATSAPP_RECEIPT_ERROR', e && e.message);
+      toast('تعذّر إرسال الإيصال عبر واتساب', 'error');
+    } finally {
+      // نزيل الغلاف الخارجي (containerWrapper) وليس container فقط، لأن container أصبح
+      // الآن بداخل غلاف مثبّت بحجم صفر تم إنشاؤه أعلاه لإخفائه دون إخراجه من تدفق المستند.
+      if (container && container.parentNode) {
+        const wrapper = container.parentNode;
+        if (wrapper.parentNode) wrapper.parentNode.removeChild(wrapper);
+        else wrapper.removeChild(container);
+      }
+      if (btn) btn.disabled = false;
+    }
   }
 
   // ---------- إيصال دفع الرسوم التفصيلي (لسندات القبض المرتبطة بطالب) ----------
@@ -1406,6 +1622,7 @@
   }
 
   function printStudentCard(studentId) {
+    if (blockIfViewer()) return;
     const s = AccStore.getStudent(studentId);
     if (!s) return;
     const g = AccStore.gradeById(s.class_id);
@@ -1429,6 +1646,7 @@
   // ---------- بطاقة دخول الامتحان: الشعار أعلى اليسار، اسم المدرسة أعلى الوسط، صورة الطالب بجانب اسمه،
   // توقيع المدير أسفل اليسار، وختم المدرسة أسفل اليمين ----------
   function printExamCard(studentId) {
+    if (blockIfViewer()) return;
     const s = AccStore.getStudent(studentId);
     if (!s) return;
     const g = AccStore.gradeById(s.class_id);
@@ -1459,6 +1677,7 @@
 
   // ---------- كشف كامل بجميع سندات القبض الخاصة بطالب (مستند واحد منفصل، بخلاف إيصال كل سند الذي يُطبع وحده الآن) ----------
   function printStudentStatement(studentId) {
+    if (blockIfViewer()) return;
     const s = AccStore.getStudent(studentId);
     if (!s) return;
     const qrText = `${AccStore.SCHOOL_CODE}|${s.reg_no}`;
