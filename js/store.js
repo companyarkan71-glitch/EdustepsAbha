@@ -39,7 +39,7 @@ import {
   // ملاحظة: لا يُمرَّر معرّف قاعدة بيانات صريح هنا — قاعدة البيانات الافتراضية الحقيقية اسمها الداخلي
   // "(default)"، وتمرير أي نص آخر (مثل "default" بدون قوسين) يوجّه التطبيق لقاعدة بيانات غير موجودة
   // فعليًا، مما يسبب فشل الاتصال الدائم بمظهر "client is offline" مضلِّل مهما كانت الشبكة.
-  const db = initializeFirestore(fbApp, { experimentalAutoDetectLongPolling: true, useFetchStreams: false });
+  const db = initializeFirestore(fbApp, { experimentalAutoDetectLongPolling: true, useFetchStreams: false }, 'default');
   setPersistence(auth, browserSessionPersistence).catch(() => {});
 
   // ---------- دليل الحسابات المدرسي (ثابت) ----------
