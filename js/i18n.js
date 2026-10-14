@@ -20,7 +20,6 @@
   // ---- هوية المدرسة (تُستبدل تلقائيًا لكل موقع عبر متغير BRAND أدناه) ----
   addAll({
     'إيديوبلس - أبها': 'EduPlus Abha',
-    'Cute Kids — كيوت كيدز إنترناشونال': 'EduPlus Abha',
     'إيديوبلس - أبها. جميع الحقوق محفوظة.': 'EduPlus Abha. All rights reserved.',
     'النظام المحاسبي المدرسي | إيديوبلس - أبها': 'School Accounting System | EduPlus Abha',
     'النظام المحاسبي | إيديوبلس - أبها': 'Accounting System | EduPlus Abha',
