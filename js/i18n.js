@@ -693,6 +693,12 @@
     'أخرى': 'Other',
   });
 
+  // ================= لوحة الرسوم حسب النوع (نظرة عامة + القوائم المالية) =================
+  addAll({
+    'الرسوم حسب النوع': 'Fees by Type',
+    'إجمالي كل نوع رسم عبر جميع الطلاب المسجَّلين — رسوم مُقرَّرة، بصرف النظر عمّا تم تحصيله فعليًا': 'Total of each fee type across all enrolled students — fees billed, regardless of what has actually been collected',
+  });
+
   // ================= محرك الترجمة =================
   var forwardPairs = null; // [[ar, en], ...] مرتبة تنازليًا حسب طول النص العربي
   var reversePairs = null; // [[en, ar], ...] مرتبة تنازليًا حسب طول النص الإنجليزي

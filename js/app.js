@@ -250,6 +250,11 @@
       centerValue: expenseSlices.length ? fmtMoney(income.totalExpense) : '—',
     });
 
+    const feesByType = AccStore.getFeesByType();
+    $('#feeTypeGrid').innerHTML = feesByType.rows.map((r) => `
+      <div class="fee-type-tile"><div class="ft-label">${escapeHtml(r.type.label)}</div><div class="ft-value">${fmtMoney(r.amount)}</div></div>
+    `).join('');
+
     const vouchers = AccStore.listVouchers({ page: 1, pageSize: 5 }).rows;
     $('#recentTable tbody').innerHTML = vouchers.map((v) => `
       <tr>
@@ -1274,6 +1279,11 @@
       || '<tr><td colspan="2" style="text-align:center;color:var(--text-muted);">لا توجد بيانات</td></tr>';
     $('#expenseBreakdownBody').innerHTML = income.expenseRows.map((r) => `
       <tr><td>${r.account.name}</td><td>${fmtMoney(r.amount)}</td></tr>`).join('')
+      || '<tr><td colspan="2" style="text-align:center;color:var(--text-muted);">لا توجد بيانات</td></tr>';
+
+    const feesByType = AccStore.getFeesByType();
+    $('#feeTypeBreakdownBody').innerHTML = feesByType.rows.map((r) => `
+      <tr><td>${escapeHtml(r.type.label)}</td><td>${fmtMoney(r.amount)}</td></tr>`).join('')
       || '<tr><td colspan="2" style="text-align:center;color:var(--text-muted);">لا توجد بيانات</td></tr>';
   }
 

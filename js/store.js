@@ -522,6 +522,19 @@ import {
       return { revenueRows, expenseRows, totalRevenue, totalExpense, netProfit: round2(totalRevenue - totalExpense) };
     },
 
+    // ---------- الرسوم مفصَّلة حسب النوع (إجمالي كل نوع رسم عبر كل الطلاب المسجَّلين — رسوم مُقرَّرة، بصرف النظر عمّا تم تحصيله فعليًا) ----------
+    getFeesByType() {
+      const totals = {};
+      FEE_TYPES.forEach((f) => { totals[f.id] = 0; });
+      cache.students.forEach((s) => {
+        const fees = s.fees || {};
+        FEE_TYPES.forEach((f) => { totals[f.id] += Number(fees[f.id]) || 0; });
+      });
+      const rows = FEE_TYPES.map((f) => ({ type: f, amount: round2(totals[f.id] || 0) }));
+      const totalFees = round2(rows.reduce((s, r) => s + r.amount, 0));
+      return { rows, totalFees };
+    },
+
     getMonthlySeries(months = 6) {
       const now = new Date();
       const buckets = [];
