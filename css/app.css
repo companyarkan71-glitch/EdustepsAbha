@@ -211,6 +211,12 @@ table.data-table tfoot td { font-weight: 800; background: var(--page); border-to
 .summary-card b { display: block; font-size: 26px; margin-top: 8px; }
 @media (max-width: 700px) { .summary-hero { grid-template-columns: 1fr; } }
 
+/* ---------- شبكة الرسوم مفصَّلة حسب النوع ---------- */
+.fee-type-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.fee-type-tile { background: var(--page); border: 1px solid var(--gridline); border-radius: var(--radius-sm); padding: 14px 16px; text-align: center; }
+.fee-type-tile .ft-label { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; font-weight: 700; }
+.fee-type-tile .ft-value { font-size: 17px; font-weight: 800; color: var(--ink); }
+
 .balance-pill { display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 999px; font-weight: 800; font-size: 13px; }
 .balance-pill.ok { background: #e9f9ec; color: var(--status-good-text); }
 .balance-pill.bad { background: #fdecea; color: var(--status-critical); }
