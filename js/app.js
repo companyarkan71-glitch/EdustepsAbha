@@ -317,6 +317,7 @@
 
   function loadStudents() {
     const grade = state.studentsClassId ? AccStore.gradeById(state.studentsClassId) : null;
+    const totals = AccStore.getStudentsTotals({ classId: state.studentsClassId, search: state.studentsSearch });
 
     if (grade) {
       $('#classGrid').classList.add('hidden');
@@ -326,6 +327,9 @@
       $('#cphName').textContent = grade.name;
       const counts = AccStore.getClassCounts();
       $('#cphMeta').textContent = `${String(grade.base).padStart(6, '0')}+  •  ${counts[grade.id] || 0} طالب`;
+      $('#cphTotalFees').textContent = fmtMoney(totals.totalFees);
+      $('#cphRemaining').textContent = fmtMoney(totals.remainingDue);
+      $('#cphRemaining').closest('.cph-stat').classList.toggle('zero', totals.remainingDue <= 0);
     } else {
       $('#classGrid').classList.remove('hidden');
       $('#classPageHeader').classList.add('hidden');
@@ -335,7 +339,6 @@
     $('#studentsPanelSub').textContent = grade ? `الصف الحالي: ${grade.name}` : 'كل الصفوف';
 
     const { rows, total } = AccStore.listStudents({ classId: state.studentsClassId, search: state.studentsSearch, page: state.studentsPage, pageSize: 8 });
-    const totals = AccStore.getStudentsTotals({ classId: state.studentsClassId, search: state.studentsSearch });
     $('#studentsCount').textContent = totals.totalStudents;
     $('#studentsCountSub').textContent = grade ? `في ${grade.name}` : 'في جميع الصفوف';
     $('#studentsTotalCollected').textContent = fmtMoney(totals.totalCollected);
