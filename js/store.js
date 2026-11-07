@@ -425,7 +425,13 @@ import {
 
     getStudentsTotals({ classId = '', search = '' } = {}) {
       const { rows } = this.listStudents({ classId, search, page: 1, pageSize: 100000 });
-      return { totalStudents: rows.length, totalCollected: round2(rows.reduce((s, r) => s + r.totalPaid, 0)) };
+      const totalCollected = round2(rows.reduce((s, r) => s + r.totalPaid, 0));
+      // إجمالي الرسوم المستحقة بعد الخصم (صافي) — لكل طالب على حدة ثم تُجمع، لأن نسبة الخصم تختلف من طالب لآخر
+      const totalFees = round2(rows.reduce((s, r) => {
+        const discount = Math.max(0, Math.min(100, Number(r.discount_percent) || 0));
+        return s + (Number(r.tuition_fee) || 0) * (1 - discount / 100);
+      }, 0));
+      return { totalStudents: rows.length, totalCollected, totalFees, remainingDue: round2(totalFees - totalCollected) };
     },
 
     // ---------- سجل المعلمين ----------
