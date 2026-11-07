@@ -290,6 +290,13 @@ table.data-table tfoot td { font-weight: 800; background: var(--page); border-to
 .cph-info h2 { margin: 0; font-size: 17px; color: var(--ink); }
 .cph-info p { margin: 3px 0 0; font-size: 12.5px; color: var(--text-muted); font-family: monospace; direction: ltr; text-align: right; }
 @media (max-width: 640px) { .class-page-header { flex-wrap: wrap; } .cph-info { border-inline-start: none; padding-inline-start: 0; } }
+.cph-stats { display: flex; gap: 12px; margin-inline-start: auto; flex-wrap: wrap; }
+.cph-stat { text-align: center; background: var(--page); border: 1px solid var(--gridline); border-radius: var(--radius-sm); padding: 8px 16px; min-width: 110px; }
+.cph-stat-label { display: block; font-size: 11px; color: var(--text-muted); font-weight: 700; margin-bottom: 3px; }
+.cph-stat-value { display: block; font-size: 15px; font-weight: 800; color: var(--ink); }
+.cph-stat-due .cph-stat-value { color: var(--status-critical); }
+.cph-stat-due.zero .cph-stat-value { color: var(--status-good-text, #0a7a3d); }
+@media (max-width: 640px) { .cph-stats { margin-inline-start: 0; width: 100%; } }
 
 /* ---------- شريط أدوات جدول الطلاب ---------- */
 .students-actions-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 16px 22px; border-bottom: 1px solid var(--gridline); background: #fafcff; }
