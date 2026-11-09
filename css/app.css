@@ -128,6 +128,12 @@ body.app-body::before {
 .kpi-box.k-count::before { background: var(--series-7); }
 .kpi-box.k-month-income { background: linear-gradient(160deg, color-mix(in srgb, var(--series-3) 9%, #fff), #fff 65%); }
 .kpi-box.k-month-income::before { background: var(--series-3); }
+.kpi-box.k-paid { background: linear-gradient(160deg, color-mix(in srgb, var(--status-good) 9%, #fff), #fff 65%); }
+.kpi-box.k-paid::before { background: var(--status-good); }
+.kpi-box.k-due { background: linear-gradient(160deg, color-mix(in srgb, var(--status-critical) 9%, #fff), #fff 65%); }
+.kpi-box.k-due::before { background: var(--status-critical); }
+.kpi-box.k-due.zero { background: linear-gradient(160deg, color-mix(in srgb, var(--status-good) 9%, #fff), #fff 65%); }
+.kpi-box.k-due.zero::before { background: var(--status-good); }
 .kpi-label-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .kpi-label-row .kpi-label { margin-bottom: 0; }
 .kpi-month-nav { display: flex; gap: 4px; }
@@ -297,6 +303,15 @@ table.data-table tfoot td { font-weight: 800; background: var(--page); border-to
 .cph-stat-due .cph-stat-value { color: var(--status-critical); }
 .cph-stat-due.zero .cph-stat-value { color: var(--status-good-text, #0a7a3d); }
 @media (max-width: 640px) { .cph-stats { margin-inline-start: 0; width: 100%; } }
+
+/* ---------- تصنيف الموظفين حسب الفئة الوظيفية ---------- */
+tr.emp-category-row td { background: var(--page); padding: 10px 16px; border-bottom: 1px solid var(--gridline); border-top: 2px solid var(--gridline); }
+tr.emp-category-row strong { color: var(--ink); font-size: 13px; }
+tr.emp-category-row .cat-sub { color: var(--text-muted); font-size: 12px; margin-inline-start: 10px; }
+tr.emp-category-row:hover td { background: var(--page); }
+
+/* ---------- حقل معروض محسوب (مثل المبلغ المستحق بعد الخصم) ---------- */
+.computed-readout { background: var(--page); border: 1.5px solid var(--gridline); border-radius: var(--radius-sm, 8px); padding: 10px 14px; font-weight: 800; font-size: 14px; color: var(--ink); }
 
 /* ---------- شريط أدوات جدول الطلاب ---------- */
 .students-actions-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 16px 22px; border-bottom: 1px solid var(--gridline); background: #fafcff; }
