@@ -113,20 +113,40 @@ import {
   };
   function feeTypeToAccountId(feeTypeId) { return FEE_TYPE_ACCOUNT_MAP[feeTypeId] || 'rev_other'; }
 
-  // ---------- الوظائف التدريسية (لقسم المعلمين) ----------
+  // ---------- فئات الموظفين (لقسم الموظفين) ----------
   const TEACHER_ROLES = [
-    { id: 'homeroom', label: 'معلم/ة فصل' },
-    { id: 'subject', label: 'معلم/ة مادة' },
-    { id: 'assistant', label: 'معلم/ة مساعد' },
-    { id: 'coordinator', label: 'منسق/ة' },
-    { id: 'admin_staff', label: 'إداري/ة' },
-    { id: 'other', label: 'أخرى' },
+    { id: 'manager', label: 'مدير/ة' },
+    { id: 'teacher', label: 'معلم/ة' },
+    { id: 'staff', label: 'طاقم مدرسي' },
+    { id: 'door_guard', label: 'حارس بوابة' },
+    { id: 'cleaner', label: 'عامل/ة نظافة' },
   ];
+  // تحويل الفئات القديمة (قبل التحديث) إلى الفئات الخمس الجديدة — لعرض السجلات القديمة بشكل صحيح دون الحاجة لتعديلها يدويًا
+  const LEGACY_ROLE_MAP = {
+    homeroom: 'teacher', subject: 'teacher', assistant: 'teacher',
+    coordinator: 'staff', admin_staff: 'staff', other: 'staff',
+  };
   function teacherRoleById(id) { return TEACHER_ROLES.find((r) => r.id === id) || null; }
-  function teacherRoleLabel(id) { const r = teacherRoleById(id); return r ? r.label : (id || '—'); }
+  // يُرجع معرّف الفئة الفعلي لأي موظف — يُطابق الفئات الجديدة، أو يحوّل الفئات القديمة تلقائيًا، أو "طاقم مدرسي" كخيار افتراضي آمن
+  function teacherCategoryId(id) {
+    if (teacherRoleById(id)) return id;
+    if (LEGACY_ROLE_MAP[id]) return LEGACY_ROLE_MAP[id];
+    return 'staff';
+  }
+  function teacherRoleLabel(id) { const r = teacherRoleById(teacherCategoryId(id)); return r ? r.label : (id || '—'); }
 
   // ---------- أدوات عامة ----------
   function round2(n) { return Math.round((n + Number.EPSILON) * 100) / 100; }
+
+  // عدد الأشهر المستحقة منذ تاريخ التعيين وحتى اليوم (شاملاً الشهر الحالي) — يُستخدم لحساب مستحقات الموظف التراكمية
+  function monthsAccrued(joinDateStr) {
+    if (!joinDateStr) return 0;
+    const start = new Date(joinDateStr + 'T00:00:00');
+    const now = new Date();
+    if (isNaN(start.getTime()) || start > now) return 0;
+    const months = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth()) + 1;
+    return Math.max(1, months);
+  }
 
   // تنزيل نص (CSV/JSON) كملف على جهاز المستخدم
   function downloadTextFile(filename, content, mime) {
@@ -213,7 +233,7 @@ import {
   const Store = {
     ACCOUNTS, REVENUE_ACCOUNTS, EXPENSE_ACCOUNTS, ASSET_ACCOUNTS, accountById, accountLabel,
     GRADES, gradeById, FEE_TYPES, feeTypeById, feeTypeToAccountId, SCHOOL_CODE, peekNextRegNo,
-    TEACHER_ROLES, teacherRoleById, teacherRoleLabel,
+    TEACHER_ROLES, teacherRoleById, teacherRoleLabel, teacherCategoryId,
 
     // إنشاء سند قبض — معاملة Firestore ذرّية: تحجز رقمًا تسلسليًا فريدًا حتى مع كتابة متزامنة من أكثر من جهاز
     async createReceipt(data) {
@@ -245,6 +265,7 @@ import {
       const record = {
         id: ref.id, type: 'payment', serial: '', date: data.date, amount: round2(Number(data.amount)),
         party_name: data.party_name, method: data.method, account_id: data.account_id,
+        employee_id: data.employee_id || null,
         debit_account_id: data.account_id, credit_account_id: cashSide,
         description: data.description || '', created_at: new Date().toISOString(),
       };
@@ -440,7 +461,9 @@ import {
       const now = new Date().toISOString();
       const record = {
         id: ref.id, emp_no: '', role: data.role || '', name: (data.name || '').trim(),
-        phone: data.phone || '', salary: round2(Math.max(0, Number(data.salary) || 0)),
+        specialty: data.specialty || '', phone: data.phone || '',
+        salary: round2(Math.max(0, Number(data.salary) || 0)),
+        discount: round2(Math.max(0, Number(data.discount) || 0)),
         join_date: data.join_date || new Date().toISOString().slice(0, 10), photo: data.photo || '',
         experience: data.experience || '', gender: data.gender || '', guardian_name: data.guardian_name || '',
         email: data.email || '', religion: data.religion || '', national_id: data.national_id || '',
@@ -465,6 +488,7 @@ import {
       const updated = {
         ...prev, ...data, id: prev.id, emp_no: prev.emp_no,
         salary: round2(Math.max(0, Number(data.salary ?? prev.salary) || 0)),
+        discount: round2(Math.max(0, Number(data.discount ?? prev.discount) || 0)),
         updated_at: new Date().toISOString(),
       };
       await setDoc(doc(db, 'teachers', id), updated);
@@ -483,29 +507,87 @@ import {
 
     getTeacher(id) { return cache.teachers.find((t) => t.id === id) || null; },
 
+    // الراتب الصافي بعد الخصم (لا يقل عن صفر)
+    netSalary(t) { return round2(Math.max(0, (Number(t && t.salary) || 0) - (Number(t && t.discount) || 0))); },
+
+    // سندات الصرف المرتبطة بموظف معيّن (المرتبطة عبر employee_id عند إنشائها من "تسجيل دفعة")
+    getEmployeePayments(employee) {
+      const rows = cache.vouchers
+        .filter((v) => v.type === 'payment' && v.employee_id === employee.id)
+        .sort((a, b) => new Date(b.date) - new Date(a.date));
+      return { rows, count: rows.length, totalPaid: round2(rows.reduce((s, v) => s + v.amount, 0)), lastDate: rows.length ? rows[0].date : null };
+    },
+
+    // يضيف للموظف الحقول المحسوبة: الراتب الصافي، عدد الأشهر المستحقة، إجمالي المستحق تراكميًا، إجمالي المدفوع، والمتبقي
+    decorateEmployee(t) {
+      const net = this.netSalary(t);
+      const months = monthsAccrued(t.join_date);
+      const totalAccrued = round2(net * months);
+      const pay = this.getEmployeePayments(t);
+      const remainingDue = Math.max(0, round2(totalAccrued - pay.totalPaid));
+      return {
+        ...t, netSalary: net, monthsAccrued: months, totalAccrued,
+        totalPaid: pay.totalPaid, remainingDue, categoryId: teacherCategoryId(t.role),
+      };
+    },
+
     listTeachers({ search = '', page = 1, pageSize = 12 } = {}) {
       let list = cache.teachers.slice().sort((a, b) => (a.emp_no || '').localeCompare(b.emp_no || ''));
       if (search) {
         const q = search.trim().toLowerCase();
-        list = list.filter((t) => [t.name, t.emp_no, t.phone, t.national_id].some((f) => String(f || '').toLowerCase().includes(q)));
+        list = list.filter((t) => [t.name, t.emp_no, t.phone, t.national_id, t.specialty].some((f) => String(f || '').toLowerCase().includes(q)));
       }
       const total = list.length;
       const start = (Math.max(1, page) - 1) * pageSize;
-      return { rows: list.slice(start, start + pageSize), total };
+      return { rows: list.slice(start, start + pageSize).map((t) => this.decorateEmployee(t)), total };
     },
 
+    // ملخص شامل + ملخص لكل فئة وظيفية (مدير / معلم / طاقم مدرسي / حارس بوابة / عامل نظافة)
     getTeachersTotals() {
-      return { totalTeachers: cache.teachers.length, totalSalaries: round2(cache.teachers.reduce((s, t) => s + (t.salary || 0), 0)) };
+      const all = cache.teachers.map((t) => this.decorateEmployee(t));
+      const byRole = {};
+      TEACHER_ROLES.forEach((r) => { byRole[r.id] = { role: r, count: 0, netSalaryTotal: 0, totalPaid: 0, remainingDue: 0 }; });
+      all.forEach((t) => {
+        const bucket = byRole[t.categoryId] || byRole.staff;
+        bucket.count += 1; bucket.netSalaryTotal += t.netSalary; bucket.totalPaid += t.totalPaid; bucket.remainingDue += t.remainingDue;
+      });
+      const byRoleRows = TEACHER_ROLES.map((r) => {
+        const b = byRole[r.id];
+        return { role: r, count: b.count, netSalaryTotal: round2(b.netSalaryTotal), totalPaid: round2(b.totalPaid), remainingDue: round2(b.remainingDue) };
+      });
+      return {
+        totalTeachers: all.length,
+        totalSalaries: round2(all.reduce((s, t) => s + (t.salary || 0), 0)),
+        netSalaryTotal: round2(all.reduce((s, t) => s + t.netSalary, 0)),
+        totalPaid: round2(all.reduce((s, t) => s + t.totalPaid, 0)),
+        remainingDue: round2(all.reduce((s, t) => s + t.remainingDue, 0)),
+        byRole: byRoleRows,
+      };
+    },
+
+    // تسجيل دفعة راتب لموظف — يُنشئ سند صرف حقيقي على حساب "رواتب الموظفين" (exp_salaries)، فيُحتسب ضمن إجمالي المصروفات وصافي الربح
+    async payEmployee(employeeId, data) {
+      const t = cache.teachers.find((x) => x.id === employeeId);
+      if (!t) return { ok: false, error: 'لم يتم العثور على سجل الموظف' };
+      const amount = round2(Number(data.amount) || 0);
+      if (amount <= 0) return { ok: false, error: 'أدخل مبلغًا صحيحًا أكبر من صفر' };
+      await this.createPayment({
+        date: data.date, amount, party_name: t.name, method: data.method || 'cash',
+        account_id: 'exp_salaries', employee_id: t.id,
+        description: data.description || `دفعة راتب — ${t.name}`,
+      });
+      return { ok: true };
     },
 
     exportTeachersCSV() {
-      const headers = ['الرقم الوظيفي', 'الاسم', 'الوظيفة', 'الجوال', 'الراتب الشهري', 'تاريخ الالتحاق', 'البريد الإلكتروني', 'رقم الهوية الوطنية'];
+      const headers = ['الرقم الوظيفي', 'الاسم', 'الفئة', 'التخصص', 'الجوال', 'الراتب الأساسي', 'الخصم', 'المستحق الصافي الشهري', 'تاريخ التعيين', 'إجمالي المدفوع', 'المتبقي', 'البريد الإلكتروني', 'رقم الهوية الوطنية'];
       const esc = (v) => { if (v === null || v === undefined) return ''; const s = String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
       const lines = [headers.map(esc).join(',')];
       cache.teachers.slice().sort((a, b) => (a.emp_no || '').localeCompare(b.emp_no || '')).forEach((t) => {
-        lines.push([t.emp_no, t.name, teacherRoleLabel(t.role), t.phone || '', t.salary || 0, t.join_date || '', t.email || '', t.national_id || ''].map(esc).join(','));
+        const d = this.decorateEmployee(t);
+        lines.push([t.emp_no, t.name, teacherRoleLabel(t.role), t.specialty || '', t.phone || '', t.salary || 0, t.discount || 0, d.netSalary, t.join_date || '', d.totalPaid, d.remainingDue, t.email || '', t.national_id || ''].map(esc).join(','));
       });
-      downloadTextFile(`teachers-${Date.now()}.csv`, '﻿' + lines.join('\r\n'), 'text/csv;charset=utf-8;');
+      downloadTextFile(`employees-${Date.now()}.csv`, '﻿' + lines.join('\r\n'), 'text/csv;charset=utf-8;');
     },
 
     getIncomeStatement({ from = null, to = null } = {}) {
