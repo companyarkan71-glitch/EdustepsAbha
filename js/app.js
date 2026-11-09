@@ -180,6 +180,7 @@
 
     if (tab === 'overview') loadOverview();
     if (tab === 'students') loadStudents();
+    if (tab === 'teachers') loadTeachers();
     if (tab === 'receipts') loadReceipts();
     if (tab === 'payments') loadPayments();
     if (tab === 'journal') loadJournal();
