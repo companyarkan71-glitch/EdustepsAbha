@@ -76,7 +76,7 @@
       </button>
       <button class="tab-btn" data-tab="teachers">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-        المعلمون
+        الموظفون
       </button>
       <button class="tab-btn" data-tab="receipts">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
@@ -287,16 +287,48 @@
 
     <!-- ============ تبويب: المعلمون ============ -->
     <section id="tab-teachers" class="tab-panel hidden">
-      <div class="kpi-grid" style="grid-template-columns:repeat(2,1fr);margin-bottom:22px;">
+      <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:22px;">
         <div class="kpi-box k-count">
-          <div class="kpi-label">عدد المعلمين والموظفين</div>
+          <div class="kpi-label">عدد الموظفين</div>
           <div class="kpi-value" id="teachersCount">0</div>
           <div class="kpi-sub">جميع السجلات المضافة</div>
         </div>
         <div class="kpi-box k-expense">
-          <div class="kpi-label">إجمالي الرواتب الشهرية</div>
+          <div class="kpi-label">إجمالي الرواتب الشهرية (بعد الخصم)</div>
           <div class="kpi-value" id="teachersTotalSalaries">0 ر.س</div>
-          <div class="kpi-sub">رواتب جميع المعلمين والموظفين</div>
+          <div class="kpi-sub">الفاتورة الشهرية الصافية لجميع الموظفين</div>
+        </div>
+        <div class="kpi-box k-paid">
+          <div class="kpi-label">إجمالي المدفوع للموظفين</div>
+          <div class="kpi-value" id="teachersTotalPaid">0 ر.س</div>
+          <div class="kpi-sub">منذ تاريخ تعيين كل موظف</div>
+        </div>
+        <div class="kpi-box k-due" id="teachersDueBox">
+          <div class="kpi-label">المتبقي الذي يجب دفعه</div>
+          <div class="kpi-value" id="teachersRemainingDue">0 ر.س</div>
+          <div class="kpi-sub">مستحق على المدرسة حتى اليوم</div>
+        </div>
+      </div>
+
+      <div class="panel" id="teachersSummaryPanel" style="margin-bottom:20px;">
+        <div class="panel-head">
+          <h3>ملخص الرواتب حسب الفئة</h3>
+          <p>إجمالي المستحق، المدفوع، والمتبقي لكل فئة وظيفية ولكل الموظفين مجتمعين</p>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead><tr><th>الفئة</th><th>عدد الموظفين</th><th>إجمالي الرواتب الصافية</th><th>إجمالي المدفوع</th><th>المتبقي</th></tr></thead>
+            <tbody id="teachersSummaryBody"></tbody>
+            <tfoot>
+              <tr>
+                <td>الإجمالي (كل الموظفين)</td>
+                <td id="teachersSummaryTotalCount">0</td>
+                <td id="teachersSummaryTotalNet">0 ر.س</td>
+                <td id="teachersSummaryTotalPaid">0 ر.س</td>
+                <td id="teachersSummaryTotalDue">0 ر.س</td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
       </div>
 
@@ -304,13 +336,13 @@
         <div class="panel-head">
           <h3>
             <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-3px;margin-inline-end:6px;"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-            سجل المعلمين والموظفين
+            سجل الموظفين
           </h3>
-          <p id="teachersPanelSub">بيانات المعلمين والموظفين — الرقم الوظيفي يُولَّد تلقائيًا</p>
+          <p id="teachersPanelSub">بيانات الموظفين مصنّفة حسب الفئة الوظيفية — الرقم الوظيفي يُولَّد تلقائيًا</p>
         </div>
         <div class="students-actions-bar">
           <div class="filters-inline">
-            <input type="text" id="teacherSearch" placeholder="بحث بالاسم أو الرقم الوظيفي أو الجوال..." />
+            <input type="text" id="teacherSearch" placeholder="بحث بالاسم أو الرقم الوظيفي أو الجوال أو التخصص..." />
           </div>
           <button class="btn btn-navy btn-sm" id="exportTeachersBtn" type="button">
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -318,20 +350,19 @@
           </button>
           <button class="btn btn-accent" id="addTeacherBtn" type="button">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            إضافة معلم / موظف
+            إضافة موظف
           </button>
         </div>
         <div class="table-wrap">
-          <table class="data-table">
-            <thead><tr><th>الصورة</th><th>الاسم</th><th>الوظيفة</th><th>الجوال</th><th>الراتب الشهري</th><th>تاريخ الالتحاق</th><th>إجراءات</th></tr></thead>
+          <table class="data-table" style="min-width:1180px;">
+            <thead><tr><th>الصورة</th><th>الاسم</th><th>التخصص</th><th>الجوال</th><th>الراتب الأساسي</th><th>الخصم</th><th>المستحق الصافي</th><th>إجمالي المدفوع</th><th>المتبقي</th><th>تاريخ التعيين</th><th>إجراءات</th></tr></thead>
             <tbody id="teachersTableBody"></tbody>
           </table>
           <div id="teachersEmpty" class="empty-state hidden">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-            <p>لا يوجد معلمون أو موظفون مسجَّلون بعد — اضغط «إضافة معلم / موظف» للبدء</p>
+            <p>لا يوجد موظفون مسجَّلون بعد — اضغط «إضافة موظف» للبدء</p>
           </div>
         </div>
-        <div class="pagination"><span class="info" id="teachersPagInfo"></span><div class="pages" id="teachersPagPages"></div></div>
       </div>
     </section>
 
@@ -753,8 +784,8 @@
   <div class="modal-box modal-lg">
     <div class="modal-head">
       <div>
-        <h3 id="teacherModalTitle">إضافة معلم / موظف جديد</h3>
-        <p>بيانات المعلم أو الموظف — الرقم الوظيفي يُولَّد تلقائيًا عند الحفظ</p>
+        <h3 id="teacherModalTitle">إضافة موظف جديد</h3>
+        <p>بيانات الموظف — الرقم الوظيفي يُولَّد تلقائيًا عند الحفظ</p>
       </div>
       <button class="modal-close" id="teacherModalClose" type="button">×</button>
     </div>
@@ -766,11 +797,14 @@
         <div class="aform-section">
           <div class="aform-section-head"><span class="aform-badge">1</span><h4>البيانات الأساسية</h4></div>
           <div class="aform-grid">
-            <div class="field"><label>الوظيفة *</label><select name="role" id="teacherRoleSelect" required></select></div>
+            <div class="field"><label>الفئة الوظيفية *</label><select name="role" id="teacherRoleSelect" required></select></div>
+            <div class="field"><label>التخصص</label><input type="text" name="specialty" placeholder="مثال: رياضيات، أمن وسلامة..." /></div>
             <div class="field"><label>رقم الجوال (SMS / واتساب)</label><input type="tel" name="phone" placeholder="+9665xxxxxxxx" /></div>
-            <div class="field"><label>اسم المعلم / الموظف *</label><input type="text" name="name" required /></div>
-            <div class="field"><label>الراتب الشهري (ر.س) *</label><input type="number" name="salary" min="0" step="0.01" required /></div>
-            <div class="field"><label>تاريخ الالتحاق *</label><input type="date" name="join_date" required /></div>
+            <div class="field"><label>اسم الموظف *</label><input type="text" name="name" required /></div>
+            <div class="field"><label>الراتب الأساسي الشهري (ر.س) *</label><input type="number" name="salary" min="0" step="0.01" required /></div>
+            <div class="field"><label>الخصم الشهري (ر.س)</label><input type="number" name="discount" min="0" step="0.01" value="0" /></div>
+            <div class="field"><label>المبلغ المستحق بعد الخصم</label><div class="computed-readout" id="teacherNetSalaryReadout">0 ر.س</div></div>
+            <div class="field"><label>تاريخ التعيين *</label><input type="date" name="join_date" required /></div>
 
             <div class="field full aform-photo-row">
               <div class="aform-photo-preview" id="teacherPhotoPreview">
@@ -809,7 +843,38 @@
     </div>
     <div class="modal-foot">
       <button class="btn" id="teacherCancelBtn" type="button" style="background:var(--page);color:var(--ink-secondary);">إلغاء</button>
-      <button class="btn btn-accent" id="teacherSaveBtn" form="teacherForm" type="submit">حفظ بيانات المعلم</button>
+      <button class="btn btn-accent" id="teacherSaveBtn" form="teacherForm" type="submit">حفظ بيانات الموظف</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ نافذة: تسجيل دفعة راتب لموظف ============ -->
+<div class="modal-overlay hidden" id="employeePayModal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div>
+        <h3>تسجيل دفعة راتب</h3>
+        <p id="employeePaySub">—</p>
+      </div>
+      <button class="modal-close" id="employeePayModalClose" type="button">×</button>
+    </div>
+    <div class="modal-body">
+      <div id="employeePayAlert" class="form-alert"></div>
+      <form id="employeePayForm" novalidate>
+        <input type="hidden" name="employee_id" />
+        <div class="aform-grid">
+          <div class="field"><label>التاريخ *</label><input type="date" name="date" required /></div>
+          <div class="field"><label>المبلغ (ر.س) *</label><input type="number" name="amount" min="0.01" step="0.01" required /></div>
+          <div class="field"><label>طريقة الصرف *</label>
+            <select name="method" required><option value="cash">نقدًا (الصندوق)</option><option value="bank">تحويل بنكي (البنك)</option></select>
+          </div>
+          <div class="field full"><label>ملاحظات <span style="font-weight:400;color:var(--text-muted)">(اختياري)</span></label><input type="text" name="description" /></div>
+        </div>
+      </form>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" id="employeePayCancelBtn" type="button" style="background:var(--page);color:var(--ink-secondary);">إلغاء</button>
+      <button class="btn btn-accent" id="employeePaySaveBtn" form="employeePayForm" type="submit">تسجيل الدفعة</button>
     </div>
   </div>
 </div>
