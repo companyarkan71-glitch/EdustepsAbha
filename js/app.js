@@ -65,7 +65,7 @@
     '#addStudentBtn', '#addUserBtn', '#viewAddPaymentBtn', '#addTeacherBtn',
     '#printStudentCardBtn', '#printExamCardBtn', '#printFullStatementBtn',
     '[data-edit]', '[data-edit-user]', '[data-edit-teacher]', '[data-print]', '[data-whatsapp]',
-    '[data-reset-pwd]', '[data-toggle-active]', '[data-delete]', '[data-delete-user]', '[data-delete-teacher]', '[data-pay]',
+    '[data-reset-pwd]', '[data-toggle-active]', '[data-delete]', '[data-delete-user]', '[data-delete-teacher]', '[data-pay]', '[data-pay-employee]',
   ];
   function applyViewerLock() {
     if (currentRole !== 'viewer') return;
@@ -156,7 +156,7 @@
   const TITLES = {
     overview: ['نظرة عامة', 'ملخص الوضع المالي للمدرسة'],
     students: ['الطلاب', 'سجل الطلاب الكامل مصنّفًا حسب الصفوف والمراحل'],
-    teachers: ['المعلمون', 'سجل المعلمين والموظفين وبياناتهم'],
+    teachers: ['الموظفون', 'سجل الموظفين وبياناتهم مصنّفًا حسب الفئة الوظيفية'],
     receipts: ['سندات القبض', 'تسجيل ومتابعة رسوم الطلاب والإيرادات'],
     payments: ['سندات الصرف', 'تسجيل ومتابعة مصروفات المدرسة'],
     journal: ['القيود اليومية', 'سجل كل حركة مالية بطرفيها المدين والدائن'],
@@ -709,17 +709,42 @@
   $('#teacherRoleSelect').innerHTML = AccStore.TEACHER_ROLES.map((r) => `<option value="${r.id}">${escapeHtml(r.label)}</option>`).join('');
 
   function loadTeachers() {
-    const { rows, total } = AccStore.listTeachers({ search: state.teachersSearch, page: state.teachersPage, pageSize: 8 });
+    // لا تصفّح (pagination) هنا عمدًا — نعرض كل الموظفين مصنّفين حسب الفئة دفعة واحدة (عددهم محدود عادة)
+    const { rows } = AccStore.listTeachers({ search: state.teachersSearch, page: 1, pageSize: 100000 });
     const totals = AccStore.getTeachersTotals();
     $('#teachersCount').textContent = totals.totalTeachers;
-    $('#teachersTotalSalaries').textContent = fmtMoney(totals.totalSalaries);
+    $('#teachersTotalSalaries').textContent = fmtMoney(totals.netSalaryTotal);
+    $('#teachersTotalPaid').textContent = fmtMoney(totals.totalPaid);
+    $('#teachersRemainingDue').textContent = fmtMoney(totals.remainingDue);
+    $('#teachersDueBox').classList.toggle('zero', totals.remainingDue <= 0);
 
+    // ---------- ملخص الرواتب حسب الفئة ----------
+    $('#teachersSummaryBody').innerHTML = totals.byRole.map((b) => `
+      <tr>
+        <td>${escapeHtml(b.role.label)}</td>
+        <td>${b.count}</td>
+        <td>${fmtMoney(b.netSalaryTotal)}</td>
+        <td>${fmtMoney(b.totalPaid)}</td>
+        <td>${fmtMoney(b.remainingDue)}</td>
+      </tr>`).join('');
+    $('#teachersSummaryTotalCount').textContent = totals.totalTeachers;
+    $('#teachersSummaryTotalNet').textContent = fmtMoney(totals.netSalaryTotal);
+    $('#teachersSummaryTotalPaid').textContent = fmtMoney(totals.totalPaid);
+    $('#teachersSummaryTotalDue').textContent = fmtMoney(totals.remainingDue);
+
+    // ---------- الجدول الرئيسي، مصنّفًا حسب الفئة ----------
     const tbody = $('#teachersTableBody');
     const empty = $('#teachersEmpty');
     if (!rows.length) { tbody.innerHTML = ''; empty.classList.remove('hidden'); }
     else {
       empty.classList.add('hidden');
-      tbody.innerHTML = rows.map((t) => `
+      const groups = AccStore.TEACHER_ROLES.map((r) => ({ role: r, rows: rows.filter((t) => t.categoryId === r.id) })).filter((g) => g.rows.length);
+      tbody.innerHTML = groups.map((g) => `
+        <tr class="emp-category-row"><td colspan="11">
+          <strong>${escapeHtml(g.role.label)}</strong>
+          <span class="cat-sub">${g.rows.length} موظف · الصافي ${fmtMoney(g.rows.reduce((s, t) => s + t.netSalary, 0))} · المدفوع ${fmtMoney(g.rows.reduce((s, t) => s + t.totalPaid, 0))} · المتبقي ${fmtMoney(g.rows.reduce((s, t) => s + t.remainingDue, 0))}</span>
+        </td></tr>
+        ${g.rows.map((t) => `
         <tr>
           <td><div class="student-avatar">${t.photo ? `<img src="${t.photo}" alt="" />` : escapeHtml((t.name || '?').slice(0, 1))}</div></td>
           <td>
@@ -727,31 +752,37 @@
               <div><div class="sn-name">${escapeHtml(t.name)}</div><div class="sn-reg">${escapeHtml(t.emp_no || '')}</div></div>
             </div>
           </td>
-          <td>${escapeHtml(AccStore.teacherRoleLabel(t.role))}</td>
+          <td>${escapeHtml(t.specialty || '—')}</td>
           <td class="mono">${escapeHtml(t.phone || '—')}</td>
           <td>${fmtMoney(t.salary)}</td>
+          <td>${fmtMoney(t.discount || 0)}</td>
+          <td>${fmtMoney(t.netSalary)}</td>
+          <td>${fmtMoney(t.totalPaid)}</td>
+          <td>${fmtMoney(t.remainingDue)}</td>
           <td>${t.join_date ? fmtDate(t.join_date) : '—'}</td>
           <td>
             <div class="row-actions">
+              <button class="icon-btn" data-pay-employee="${t.id}" title="تسجيل دفعة راتب"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></button>
               <button class="icon-btn edit" data-edit-teacher="${t.id}" title="تعديل"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></svg></button>
               ${currentRole === 'admin' ? `<button class="icon-btn danger" data-delete-teacher="${t.id}" title="حذف"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>` : ''}
             </div>
           </td>
-        </tr>`).join('');
+        </tr>`).join('')}
+      `).join('');
 
       tbody.querySelectorAll('[data-edit-teacher]').forEach((b) => b.addEventListener('click', () => { if (blockIfViewer()) return; openTeacherForm(b.dataset.editTeacher); }));
+      tbody.querySelectorAll('[data-pay-employee]').forEach((b) => b.addEventListener('click', () => { if (blockIfViewer()) return; openEmployeePayForm(b.dataset.payEmployee); }));
       tbody.querySelectorAll('[data-delete-teacher]').forEach((b) => b.addEventListener('click', async () => {
         const t = AccStore.getTeacher(b.dataset.deleteTeacher);
-        if (!confirm(`حذف «${t ? t.name : ''}» من سجل المعلمين والموظفين؟`)) return;
+        if (!confirm(`حذف «${t ? t.name : ''}» من سجل الموظفين؟`)) return;
         b.disabled = true;
         const result = await AccStore.deleteTeacher(b.dataset.deleteTeacher);
         b.disabled = false;
-        if (!result.ok) { toast(result.error || 'ليست لديك صلاحية لحذف المعلمين', 'error'); return; }
+        if (!result.ok) { toast(result.error || 'ليست لديك صلاحية لحذف الموظفين', 'error'); return; }
         toast('تم حذف السجل', 'success');
         loadTeachers();
       }));
     }
-    renderPagination('teachersPagInfo', 'teachersPagPages', total, 8, state.teachersPage, (p) => { state.teachersPage = p; loadTeachers(); });
   }
 
   // ---------- نموذج إضافة / تعديل معلم أو موظف ----------
@@ -772,6 +803,14 @@
     $('#teacherPhotoPreview').innerHTML = `<img src="${currentTeacherPhotoDataURL}" alt="" />`;
   });
 
+  function updateTeacherNetSalaryReadout() {
+    const salary = Number(teacherForm.salary.value) || 0;
+    const discount = Number(teacherForm.discount.value) || 0;
+    $('#teacherNetSalaryReadout').textContent = fmtMoney(Math.max(0, salary - discount));
+  }
+  teacherForm.salary.addEventListener('input', updateTeacherNetSalaryReadout);
+  teacherForm.discount.addEventListener('input', updateTeacherNetSalaryReadout);
+
   function resetTeacherForm() {
     teacherForm.reset();
     teacherForm.teacher_id.value = '';
@@ -779,6 +818,8 @@
     $('#teacherPhotoPreview').innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></svg>';
     $('#teacherFormAlert').className = 'form-alert';
     teacherForm.join_date.value = todayISO();
+    teacherForm.discount.value = 0;
+    updateTeacherNetSalaryReadout();
   }
 
   function openTeacherForm(teacherId) {
@@ -786,12 +827,14 @@
     if (teacherId) {
       const t = AccStore.getTeacher(teacherId);
       if (!t) return;
-      $('#teacherModalTitle').textContent = 'تعديل بيانات المعلم / الموظف';
+      $('#teacherModalTitle').textContent = 'تعديل بيانات الموظف';
       teacherForm.teacher_id.value = t.id;
       teacherForm.role.value = t.role || '';
+      teacherForm.specialty.value = t.specialty || '';
       teacherForm.phone.value = t.phone || '';
       teacherForm.name.value = t.name || '';
       teacherForm.salary.value = t.salary || 0;
+      teacherForm.discount.value = t.discount || 0;
       teacherForm.join_date.value = t.join_date || todayISO();
       teacherForm.experience.value = t.experience || '';
       teacherForm.gender.value = t.gender || '';
@@ -805,8 +848,9 @@
       teacherForm.address.value = t.address || '';
       currentTeacherPhotoDataURL = t.photo || '';
       if (currentTeacherPhotoDataURL) $('#teacherPhotoPreview').innerHTML = `<img src="${currentTeacherPhotoDataURL}" alt="" />`;
+      updateTeacherNetSalaryReadout();
     } else {
-      $('#teacherModalTitle').textContent = 'إضافة معلم / موظف جديد';
+      $('#teacherModalTitle').textContent = 'إضافة موظف جديد';
     }
     openModal('teacherModal');
   }
@@ -824,14 +868,16 @@
     const teacherId = fd.get('teacher_id');
     if (!fd.get('role') || !fd.get('name') || !fd.get('salary') || !fd.get('join_date')) {
       alertBox.className = 'form-alert show error';
-      alertBox.textContent = 'يرجى تعبئة الوظيفة والاسم والراتب الشهري وتاريخ الالتحاق — هذه الحقول إجبارية';
+      alertBox.textContent = 'يرجى تعبئة الفئة الوظيفية والاسم والراتب الأساسي وتاريخ التعيين — هذه الحقول إجبارية';
       return;
     }
     const payload = {
       role: fd.get('role'),
+      specialty: fd.get('specialty'),
       phone: fd.get('phone'),
       name: fd.get('name'),
       salary: fd.get('salary'),
+      discount: fd.get('discount'),
       join_date: fd.get('join_date'),
       photo: currentTeacherPhotoDataURL,
       experience: fd.get('experience'),
@@ -850,19 +896,72 @@
     try {
       if (teacherId) {
         await AccStore.updateTeacher(teacherId, payload);
-        toast('تم تحديث بيانات المعلم / الموظف', 'success');
+        toast('تم تحديث بيانات الموظف', 'success');
       } else {
         const created = await AccStore.createTeacher(payload);
         toast(`تمت إضافة السجل (الرقم الوظيفي: ${created.emp_no})`, 'success');
       }
       closeModal('teacherModal');
-      state.teachersPage = 1;
       loadTeachers();
     } catch (err) {
       alertBox.className = 'form-alert show error';
       alertBox.textContent = 'تعذّر الحفظ — تحقق من الاتصال بالإنترنت وحاول مجددًا';
     } finally {
       if (saveBtn2) saveBtn2.disabled = false;
+    }
+  });
+
+  // ---------- نموذج تسجيل دفعة راتب لموظف ----------
+  const employeePayForm = $('#employeePayForm');
+  function resetEmployeePayForm() {
+    employeePayForm.reset();
+    employeePayForm.employee_id.value = '';
+    employeePayForm.date.value = todayISO();
+    $('#employeePayAlert').className = 'form-alert';
+  }
+  function openEmployeePayForm(employeeId) {
+    const t = AccStore.getTeacher(employeeId);
+    if (!t) return;
+    resetEmployeePayForm();
+    employeePayForm.employee_id.value = t.id;
+    const d = AccStore.decorateEmployee(t);
+    $('#employeePaySub').textContent = `${t.name} — الراتب الصافي الشهري ${fmtMoney(d.netSalary)} · المدفوع حتى الآن ${fmtMoney(d.totalPaid)} · المتبقي ${fmtMoney(d.remainingDue)}`;
+    if (d.remainingDue > 0) employeePayForm.amount.value = d.remainingDue;
+    openModal('employeePayModal');
+  }
+  $('#employeePayModalClose').addEventListener('click', () => closeModal('employeePayModal'));
+  $('#employeePayCancelBtn').addEventListener('click', () => closeModal('employeePayModal'));
+  employeePayForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (blockIfViewer()) return;
+    const alertBox = $('#employeePayAlert');
+    alertBox.className = 'form-alert';
+    const fd = new FormData(employeePayForm);
+    const employeeId = fd.get('employee_id');
+    if (!fd.get('date') || !fd.get('amount') || !fd.get('method')) {
+      alertBox.className = 'form-alert show error';
+      alertBox.textContent = 'يرجى تعبئة التاريخ والمبلغ وطريقة الصرف';
+      return;
+    }
+    const saveBtn3 = $('#employeePaySaveBtn');
+    if (saveBtn3) saveBtn3.disabled = true;
+    try {
+      const result = await AccStore.payEmployee(employeeId, {
+        date: fd.get('date'), amount: fd.get('amount'), method: fd.get('method'), description: fd.get('description'),
+      });
+      if (!result.ok) {
+        alertBox.className = 'form-alert show error';
+        alertBox.textContent = result.error || 'تعذّر تسجيل الدفعة';
+        return;
+      }
+      toast('تم تسجيل دفعة الراتب', 'success');
+      closeModal('employeePayModal');
+      loadTeachers();
+    } catch (err) {
+      alertBox.className = 'form-alert show error';
+      alertBox.textContent = 'تعذّر الحفظ — تحقق من الاتصال بالإنترنت وحاول مجددًا';
+    } finally {
+      if (saveBtn3) saveBtn3.disabled = false;
     }
   });
 
